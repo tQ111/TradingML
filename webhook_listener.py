@@ -198,25 +198,29 @@ def receive_signal():
 
     if "LONG" in text and "GO" in text:
         pos_id = f"long_{int(time.time())}"
+        entry_df = fetch_recent_bars(minutes_back=15)
+        entry_price = float(entry_df.iloc[-1]['Close']) if entry_df is not None and len(entry_df) > 0 else None
         with positions_lock:
             open_positions[pos_id] = {
                 "direction": "long",
                 "entry_time": datetime.utcnow().isoformat(),
-                "entry_price": None,
+                "entry_price": entry_price,
                 "bars_held": 0
             }
-        log_event({"event": "position_opened", "pos_id": pos_id, "direction": "long"})
+        log_event({"event": "position_opened", "pos_id": pos_id, "direction": "long", "entry_price": entry_price})
 
     elif "SHORT" in text and "GO" in text:
         pos_id = f"short_{int(time.time())}"
+        entry_df = fetch_recent_bars(minutes_back=15)
+        entry_price = float(entry_df.iloc[-1]['Close']) if entry_df is not None and len(entry_df) > 0 else None
         with positions_lock:
             open_positions[pos_id] = {
                 "direction": "short",
                 "entry_time": datetime.utcnow().isoformat(),
-                "entry_price": None,
+                "entry_price": entry_price,
                 "bars_held": 0
             }
-        log_event({"event": "position_opened", "pos_id": pos_id, "direction": "short"})
+        log_event({"event": "position_opened", "pos_id": pos_id, "direction": "short", "entry_price": entry_price})
 
     elif "EXIT" in text:
         log_event({"event": "pinescript_exit_signal", "note": "reference only, not acted on"})
