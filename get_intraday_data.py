@@ -11,7 +11,7 @@ if not api_key:
 ticker = "SPY"
 multiplier = 5  # 5-minute bars
 timespan = "minute"
-start_date = "2024-01-01"
+start_date = "2023-01-01"
 end_date = "2024-12-31"
 
 url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{start_date}/{end_date}"
