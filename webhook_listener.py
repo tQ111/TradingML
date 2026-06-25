@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import json
 import threading
+import requests
 from datetime import datetime, timezone
 import pandas as pd
 import numpy as np
@@ -31,7 +32,32 @@ bar_buffer = []          # list of dicts: datetime, Open, High, Low, Close, Volu
 open_positions = {}      # pos_id -> {direction, entry_time, entry_price, bars_held}
 data_lock = threading.Lock()
 
+GITHUB_TOKEN = os.environ.get("GH_PAT", "")
+GITHUB_REPO = "tQ111/TradingML"
+GITHUB_FILE = "data/bars_log.jsonl"
+GITHUB_BRANCH = "main"
 
+def push_bar_to_github(bar_record):
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE}"
+        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        r = requests.get(url, headers=headers)
+        if r.status_code == 200:
+            info = r.json()
+            current = __import__('base64').b64decode(info['content']).decode('utf-8')
+            sha = info['sha']
+        else:
+            current = ""
+            sha = None
+        new_content = current + bar_record + "\n"
+        encoded = __import__('base64').b64encode(new_content.encode('utf-8')).decode('utf-8')
+        payload = {"message": f"bar: {bar_record[:40]}", "content": encoded, "branch": GITHUB_BRANCH}
+        if sha:
+            payload["sha"] = sha
+        requests.put(url, headers=headers, json=payload)
+    except Exception as e:
+        print(f"GitHub push failed: {e}")
+        
 def log_event(record):
     with open(LOG_FILE, "a") as f:
         f.write(json.dumps(record, default=str) + "\n")
@@ -184,8 +210,10 @@ def receive_signal():
             bar_buffer.append(bar)
             if len(bar_buffer) > MAX_BUFFER:
                 bar_buffer.pop(0)
+        bar_record = json.dumps({"datetime": str(bar["datetime"]), "Open": bar["Open"], "High": bar["High"], "Low": bar["Low"], "Close": bar["Close"], "Volume": bar["Volume"]})
         with open(BAR_FILE, "a") as f:
-            f.write(json.dumps({"datetime": str(bar["datetime"]), "Open": bar["Open"], "High": bar["High"], "Low": bar["Low"], "Close": bar["Close"], "Volume": bar["Volume"]}) + "\n")
+            f.write(bar_record + "\n")
+        threading.Thread(target=push_bar_to_github, args=(bar_record,), daemon=True).start()
         evaluate_all_positions()
 
     elif msg_type == "long":
